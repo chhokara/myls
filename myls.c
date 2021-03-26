@@ -2,8 +2,9 @@
 #include <string.h> 
 #include <stdlib.h> 
 #include <dirent.h> 
+#include <stdbool.h>
 
-void listDir() {
+void listDir(bool r_flag, bool i_flag, bool l_flag) {
     DIR *d;
     struct dirent * dir;
     d = opendir("./");
@@ -16,7 +17,11 @@ void listDir() {
 
 int main(int argc,char **argv) 
 { 
-    listDir();
+    bool r_flag = 0;
+    bool i_flag = 0;
+    bool l_flag = 0;
+
+    listDir(r_flag, i_flag, l_flag);
     return 0; 
 } 
 
