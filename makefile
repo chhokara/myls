@@ -1,6 +1,16 @@
-# build an executable named myls from myls.c
-all: myls.c
-	gcc -g -Wall -o myls myls.c
-
+# the compiler: gcc for C program, define as g++ for C++
+CC = gcc
+# compiler flags:
+#  -g    adds debugging information to the executable file
+#  -Wall turns on most, but not all, compiler warnings
+CFLAGS  = -g -Wall
+VALFLAGS = valgrind --leak-check=full
+# the build target executable:
+TARGET = myls
+all: $(TARGET)
+$(TARGET): $(TARGET).c
+	$(CC) $(CFLAGS) -o $(TARGET) $(TARGET).c
 clean:
-	$(RM) myls
+	$(RM) $(TARGET)	
+valgrind: 
+	valgrind --leak-check=full ./lets-talk 23433 127.0.0.1 23433
