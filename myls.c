@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include "myls.h"
 
+// helpful post: https://stackoverflow.com/questions/29401653/printing-all-files-and-folders-in-a-path-in-linux-recursively-in-c?noredirect=1&lq=1
 int processToken(char *, struct Options *, char **, int *);
 void myls(struct Options *, char **, int numPaths);
 char *permissions(char *);
