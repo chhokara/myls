@@ -6,9 +6,13 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <time.h>
+#include <sys/time.h>
 #include <fcntl.h>
 #include <libgen.h>
 #include "myls.h"
+#include <pwd.h>
+#include <grp.h>
 
 // helpful post: https://stackoverflow.com/questions/29401653/printing-all-files-and-folders-in-a-path-in-linux-recursively-in-c?noredirect=1&lq=1
 int processToken(char *, struct Options *, char **, int *);
@@ -194,7 +198,70 @@ void printFileID(char *path) {
   }
 }
 
+void getAndPrintGroup(char* path)
+{
+  struct stat st;
+  if (stat(path, &st) == 0)
+  {
+    struct group *grp = getgrgid(st.st_gid);
+    if (grp) {
+        printf(" %s", grp->gr_name);
+    } else {
+        printf("No group name for %u found\n", st.st_gid);
+    }
+  }
+  else
+  {
+    perror("getAndPrintGroup");
+  }
+}
+
+unsigned int getFileSize(char* path)
+{
+  struct stat st;
+  unsigned int fileSize = 0;
+  if (stat(path, &st) == 0)
+  {
+    fileSize = st.st_size;
+  }
+  else
+  {
+    perror("getFileSIze");
+  }
+  return fileSize;
+}
+
+void getAndPrintLastModificationDate(char* path)
+{
+  struct stat st;
+  
+  if (stat(path, &st) == 0)
+  {
+    struct timespec lastModTime = st.st_mtim;
+    char *dayBuf = malloc(3);
+    char monthBuf[4];
+    char yearAndTimeBuf[20];
+    struct tm time;
+    localtime_r(&lastModTime.tv_sec, &time);
+    strftime(monthBuf, 4, "%b", &time);
+    strftime(yearAndTimeBuf, 20, "%Y %H:%M", &time);
+    strftime(dayBuf, 3, "%d", &time);
+    if (dayBuf[0] == '0') {
+      dayBuf++;
+    }
+    printf(" %s %2s %s", monthBuf, dayBuf, yearAndTimeBuf);
+
+  }
+  else
+  {
+    perror("getAndPrintLastModificationDate");
+  }
+}
+
 void printLongListing(char *path) {
-  printf("%s", permissions(path));
+  printf("%s ", permissions(path));
+  getAndPrintGroup(path);
+  printf("%7u", getFileSize(path));
+  getAndPrintLastModificationDate(path);
   // printf("%s\n", dir->d_name);
 }
