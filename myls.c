@@ -2,17 +2,23 @@
 #include <string.h>
 #include <stdlib.h>
 #include <dirent.h>
+#include <unistd.h>
 #include <stdbool.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <libgen.h>
 #include "myls.h"
 
 // helpful post: https://stackoverflow.com/questions/29401653/printing-all-files-and-folders-in-a-path-in-linux-recursively-in-c?noredirect=1&lq=1
 int processToken(char *, struct Options *, char **, int *);
 void myls(struct Options *, char **, int numPaths);
 char *permissions(char *);
-void listRecursive(char * dirname, struct Options *options);
-void printLongListing(struct dirent*);
+void mylsExecute(char * dirname, struct Options *);
+void mylsDir(char *, struct Options *);
+void handleDisplay(char *, struct Options *);
+void printFileID(char *);
+void printLongListing(char *);
 
 void myls(struct Options *options, char **paths, int numPaths)
 {
@@ -30,8 +36,6 @@ void myls(struct Options *options, char **paths, int numPaths)
     printf("l flag was entered\n");
   }
 
-  DIR *d;
-  struct dirent *dir;
 
   // default print pwd
   if (numPaths == 0)
@@ -41,36 +45,7 @@ void myls(struct Options *options, char **paths, int numPaths)
 
   for (int i = 0; i < numPaths; i++)
   {
-    d = opendir(paths[i]);
-    // directory exists
-    if (d)
-    {
-      if(options->_R) {
-        listRecursive(paths[i], options);
-      } else {
-        while ((dir = readdir(d)))
-        {
-          if (!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, "..") || dir->d_name[0] == '.')
-          {
-            continue;
-          }
-          if(options->_l) {
-            printLongListing(dir);
-          }
-          if(options->_i) {
-              printf("%lu ", dir->d_ino);
-          }
-          printf("%s\n", dir->d_name);
-        }
-      } 
-      closedir(d);
-    }
-    // directory does not exist
-    else if (ENOENT == errno)
-    {
-      printf("Error: directory does not exist\n");
-      exit(EXIT_FAILURE);
-    }
+    mylsExecute(paths[i], options);
   }
 }
 
@@ -143,13 +118,31 @@ char *permissions(char *file)
   }
 }
 
-void listRecursive(char * dirname, struct Options *options) {
+void mylsExecute(char * path, struct Options *options) {
+
+  if (access(path, F_OK) != 0) {
+    printf("Error: file or directory does not exist\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // Check if directory
+  DIR *d;
+  d = opendir(path);
+
+  if (d) {
+    mylsDir(path, options);
+  } else {
+    handleDisplay(path, options);
+  }
+}
+
+void mylsDir(char *path, struct Options *options) {
   char * subdir;
   struct dirent ** namelist;
   int n;
   int i = -1;
 
-  n = scandir(dirname, &namelist, 0, alphasort);
+  n = scandir(path, &namelist, 0, alphasort);
   if(n < 0) {
     perror("scandir");
   } else {
@@ -165,21 +158,43 @@ void listRecursive(char * dirname, struct Options *options) {
       }
 
       if(namelist[i]->d_type == DT_DIR && strcmp(namelist[i]->d_name, ".") && strcmp(namelist[i]->d_name, "..") && namelist[i]->d_name[0] != '.') {
-        subdir = malloc(strlen(dirname) + strlen(namelist[i]->d_name) + 2);
+        subdir = malloc(strlen(path) + strlen(namelist[i]->d_name) + 2);
 
-        strcpy(subdir, dirname);
+        strcpy(subdir, path);
         strcat(subdir, "/");
         strcat(subdir, namelist[i]->d_name);
 
-        listRecursive(subdir, options);
+        mylsExecute(subdir, options);
 
         free(subdir);
       }
     }
   }
-  return;
 }
 
-void printLongListing(struct dirent *dir) {
-  printf("%s ", permissions(dir->d_name)); 
+void handleDisplay(char *path, struct Options *options) {
+  if (options->_i) {
+    printFileID(path);
+  }
+  if (options->_l) {
+    printLongListing(path);
+  }
+  printf(" %s\n", basename(path));
+}
+
+void printFileID(char *path) {
+  struct stat st;
+  if (stat(path, &st) == 0)
+  {
+    printf("%lu ", st.st_ino);
+  }
+  else
+  {
+    perror("printFileID");
+  }
+}
+
+void printLongListing(char *path) {
+  printf("%s", permissions(path));
+  // printf("%s\n", dir->d_name);
 }
