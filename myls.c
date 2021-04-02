@@ -12,6 +12,7 @@ int processToken(char *, struct Options *, char **, int *);
 void myls(struct Options *, char **, int numPaths);
 char *permissions(char *);
 void listRecursive(char * dirname, struct Options *options);
+void printLongListing(struct dirent*);
 
 void myls(struct Options *options, char **paths, int numPaths)
 {
@@ -54,13 +55,12 @@ void myls(struct Options *options, char **paths, int numPaths)
             continue;
           }
           if(options->_l) {
-              printf("%s ", permissions(dir->d_name));
+            printLongListing(dir);
           }
           if(options->_i) {
               printf("%lu ", dir->d_ino);
           }
           printf("%s\n", dir->d_name);
-
         }
       } 
       closedir(d);
@@ -69,7 +69,7 @@ void myls(struct Options *options, char **paths, int numPaths)
     else if (ENOENT == errno)
     {
       printf("Error: directory does not exist\n");
-      exit(1);
+      exit(EXIT_FAILURE);
     }
   }
 }
@@ -178,4 +178,8 @@ void listRecursive(char * dirname, struct Options *options) {
     }
   }
   return;
+}
+
+void printLongListing(struct dirent *dir) {
+  printf("%s ", permissions(dir->d_name)); 
 }
