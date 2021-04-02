@@ -11,6 +11,7 @@
 int processToken(char *, struct Options *, char **, int *);
 void myls(struct Options *, char **, int numPaths);
 char *permissions(char *);
+void listRecursive(char * dirname, struct Options *options);
 
 void myls(struct Options *options, char **paths, int numPaths)
 {
@@ -43,21 +44,25 @@ void myls(struct Options *options, char **paths, int numPaths)
     // directory exists
     if (d)
     {
-      while ((dir = readdir(d)))
-      {
-        if (!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, ".."))
+      if(options->_R) {
+        listRecursive(paths[i], options);
+      } else {
+        while ((dir = readdir(d)))
         {
-          continue;
-        }
-        if(options->_l) {
-            printf("%s ", permissions(dir->d_name));
-        }
-        if(options->_i) {
-            printf("%lu ", dir->d_ino);
-        }
-        printf("%s\n", dir->d_name);
+          if (!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, "..") || dir->d_name[0] == '.')
+          {
+            continue;
+          }
+          if(options->_l) {
+              printf("%s ", permissions(dir->d_name));
+          }
+          if(options->_i) {
+              printf("%lu ", dir->d_ino);
+          }
+          printf("%s\n", dir->d_name);
 
-      }
+        }
+      } 
       closedir(d);
     }
     // directory does not exist
@@ -136,4 +141,41 @@ char *permissions(char *file)
   {
     return strerror(errno);
   }
+}
+
+void listRecursive(char * dirname, struct Options *options) {
+  char * subdir;
+  struct dirent ** namelist;
+  int n;
+  int i = -1;
+
+  n = scandir(dirname, &namelist, 0, alphasort);
+  if(n < 0) {
+    perror("scandir");
+  } else {
+    while(++i < n) {
+      if(namelist[i]->d_name[0] != '.') {
+        if(options->_i) {
+          printf("%lu ", namelist[i]->d_ino);
+        }
+        if(options->_l) {
+          printf("%s ", permissions(namelist[i]->d_name));
+        }
+        printf("%s\n", namelist[i]->d_name);
+      }
+
+      if(namelist[i]->d_type == DT_DIR && strcmp(namelist[i]->d_name, ".") && strcmp(namelist[i]->d_name, "..") && namelist[i]->d_name[0] != '.') {
+        subdir = malloc(strlen(dirname) + strlen(namelist[i]->d_name) + 2);
+
+        strcpy(subdir, dirname);
+        strcat(subdir, "/");
+        strcat(subdir, namelist[i]->d_name);
+
+        listRecursive(subdir, options);
+
+        free(subdir);
+      }
+    }
+  }
+  return;
 }
