@@ -2,16 +2,28 @@
 #include <string.h>
 #include <stdlib.h>
 #include <dirent.h>
+#include <unistd.h>
 #include <stdbool.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <time.h>
+#include <sys/time.h>
+#include <fcntl.h>
+#include <libgen.h>
 #include "myls.h"
+#include <pwd.h>
+#include <grp.h>
 
 // helpful post: https://stackoverflow.com/questions/29401653/printing-all-files-and-folders-in-a-path-in-linux-recursively-in-c?noredirect=1&lq=1
 int processToken(char *, struct Options *, char **, int *);
 void myls(struct Options *, char **, int numPaths);
 char *permissions(char *);
-void listRecursive(char * dirname, struct Options *options);
+void mylsExecute(char * dirname, struct Options *);
+void mylsDir(char *, struct Options *);
+void handleDisplay(char *, struct Options *);
+void printFileID(char *);
+void printLongListing(char *);
+void list(char *, struct Options *);
 
 void myls(struct Options *options, char **paths, int numPaths)
 {
@@ -29,8 +41,6 @@ void myls(struct Options *options, char **paths, int numPaths)
     printf("l flag was entered\n");
   }
 
-  DIR *d;
-  struct dirent *dir;
 
   // default print pwd
   if (numPaths == 0)
@@ -40,37 +50,7 @@ void myls(struct Options *options, char **paths, int numPaths)
 
   for (int i = 0; i < numPaths; i++)
   {
-    d = opendir(paths[i]);
-    // directory exists
-    if (d)
-    {
-      if(options->_R) {
-        listRecursive(paths[i], options);
-      } else {
-        while ((dir = readdir(d)))
-        {
-          if (!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, "..") || dir->d_name[0] == '.')
-          {
-            continue;
-          }
-          if(options->_l) {
-              printf("%s ", permissions(dir->d_name));
-          }
-          if(options->_i) {
-              printf("%lu ", dir->d_ino);
-          }
-          printf("%s\n", dir->d_name);
-
-        }
-      } 
-      closedir(d);
-    }
-    // directory does not exist
-    else if (ENOENT == errno)
-    {
-      printf("Error: directory does not exist\n");
-      exit(1);
-    }
+    mylsExecute(paths[i], options);
   }
 }
 
@@ -106,6 +86,10 @@ int processToken(char *token, struct Options *options, char **paths, int *numPat
       if (token[i] == 'l')
       {
         options->_l = true;
+      }
+      if(token[i] != 'R' && token[i] != 'i' && token[i] != 'l') {
+        printf("Error: Invalid Flag\n");
+        exit(1);
       }
     }
   }
@@ -143,39 +127,176 @@ char *permissions(char *file)
   }
 }
 
-void listRecursive(char * dirname, struct Options *options) {
-  char * subdir;
+void mylsExecute(char * path, struct Options *options) {
+
+  if (access(path, F_OK) != 0) {
+    printf("Error: file or directory does not exist\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // Check if directory
+  DIR *d;
+  d = opendir(path);
+
+  if (d) {
+    if(options->_R) {
+      mylsDir(path, options);
+    } else {
+      list(path, options);
+    }
+  } else {
+    handleDisplay(path, options);
+  }
+}
+
+void mylsDir(char *path, struct Options *options) {
+  char * subdir = "";
   struct dirent ** namelist;
   int n;
   int i = -1;
 
-  n = scandir(dirname, &namelist, 0, alphasort);
+  n = scandir(path, &namelist, 0, alphasort);
   if(n < 0) {
     perror("scandir");
   } else {
-    while(++i < n) {
-      if(namelist[i]->d_name[0] != '.') {
-        if(options->_i) {
-          printf("%lu ", namelist[i]->d_ino);
+      while(++i < n) {
+        if(namelist[i]->d_name[0] != '.') {
+          if(options->_i) {
+            printf("%lu ", namelist[i]->d_ino);
+          }
+          if(options->_l) {
+            printf("%s ", permissions(namelist[i]->d_name));
+          }
+          printf("%s\n", namelist[i]->d_name);
         }
-        if(options->_l) {
-          printf("%s ", permissions(namelist[i]->d_name));
+
+        if(namelist[i]->d_type == DT_DIR && strcmp(namelist[i]->d_name, ".") && strcmp(namelist[i]->d_name, "..") && namelist[i]->d_name[0] != '.') {
+          subdir = malloc(strlen(path) + strlen(namelist[i]->d_name) + 2);
+
+          strcpy(subdir, path);
+          strcat(subdir, "/");
+          strcat(subdir, namelist[i]->d_name);
+          mylsExecute(subdir, options);
+
+          free(subdir);
         }
-        printf("%s\n", namelist[i]->d_name);
-      }
-
-      if(namelist[i]->d_type == DT_DIR && strcmp(namelist[i]->d_name, ".") && strcmp(namelist[i]->d_name, "..") && namelist[i]->d_name[0] != '.') {
-        subdir = malloc(strlen(dirname) + strlen(namelist[i]->d_name) + 2);
-
-        strcpy(subdir, dirname);
-        strcat(subdir, "/");
-        strcat(subdir, namelist[i]->d_name);
-
-        listRecursive(subdir, options);
-
-        free(subdir);
       }
     }
+}
+
+void handleDisplay(char *path, struct Options *options) {
+  if (options->_i) {
+    printFileID(path);
   }
-  return;
+  if (options->_l) {
+    printLongListing(path);
+  }
+  printf(" %s\n", basename(path));
+}
+
+void list(char *path, struct Options *options) {
+  struct dirent **namelist;
+  int n;
+  int i = -1;
+
+  n = scandir(path, &namelist,NULL,alphasort);
+  if (n < 0) {
+    perror("scandir");
+  }
+  else {
+    while (++i < n) {
+      if(!strcmp(namelist[i]->d_name, ".") || !strcmp(namelist[i]->d_name, "..") || namelist[i]->d_name[0] == '.') {
+        continue;
+      }
+      if(options->_l) {
+        printLongListing(path);
+      }
+      if(options->_i) {
+        printf("%lu ", namelist[i]->d_ino);
+      }
+      printf("%s\n", namelist[i]->d_name);
+      free(namelist[i]);
+    }
+    free(namelist);
+  }
+}
+
+void printFileID(char *path) {
+  struct stat st;
+  if (stat(path, &st) == 0)
+  {
+    printf("%lu ", st.st_ino);
+  }
+  else
+  {
+    perror("printFileID");
+  }
+}
+
+void getAndPrintGroup(char* path)
+{
+  struct stat st;
+  if (stat(path, &st) == 0)
+  {
+    struct group *grp = getgrgid(st.st_gid);
+    if (grp) {
+        printf(" %s", grp->gr_name);
+    } else {
+        printf("No group name for %u found\n", st.st_gid);
+    }
+  }
+  else
+  {
+    perror("getAndPrintGroup");
+  }
+}
+
+unsigned int getFileSize(char* path)
+{
+  struct stat st;
+  unsigned int fileSize = 0;
+  if (stat(path, &st) == 0)
+  {
+    fileSize = st.st_size;
+  }
+  else
+  {
+    perror("getFileSIze");
+  }
+  return fileSize;
+}
+
+void getAndPrintLastModificationDate(char* path)
+{
+  struct stat st;
+  
+  if (stat(path, &st) == 0)
+  {
+    struct timespec lastModTime = st.st_mtim;
+    char *dayBuf = malloc(3);
+    char monthBuf[4];
+    char yearAndTimeBuf[20];
+    struct tm time;
+    localtime_r(&lastModTime.tv_sec, &time);
+    strftime(monthBuf, 4, "%b", &time);
+    strftime(yearAndTimeBuf, 20, "%Y %H:%M", &time);
+    strftime(dayBuf, 3, "%d", &time);
+    if (dayBuf[0] == '0') {
+      dayBuf++;
+    }
+    printf(" %s %2s %s", monthBuf, dayBuf, yearAndTimeBuf);
+
+  }
+  else
+  {
+    perror("getAndPrintLastModificationDate");
+  }
+}
+
+void printLongListing(char *path) {
+  printf("%s ", permissions(path));
+  getAndPrintGroup(path);
+  printf("%7u", getFileSize(path));
+  getAndPrintLastModificationDate(path);
+  // printf("%s\n", dir->d_name);
 }
