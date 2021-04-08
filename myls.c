@@ -13,6 +13,7 @@
 #include "myls.h"
 #include <pwd.h>
 #include <grp.h>
+#include "infodemo.c"
 
 // helpful post: https://stackoverflow.com/questions/29401653/printing-all-files-and-folders-in-a-path-in-linux-recursively-in-c?noredirect=1&lq=1
 int processToken(char *, struct Options *, char **, int *);
@@ -109,16 +110,17 @@ char *permissions(char *file)
   if (stat(file, &st) == 0)
   {
     mode_t perm = st.st_mode;
-    modeval[0] = (perm & S_IRUSR) ? 'r' : '-';
-    modeval[1] = (perm & S_IWUSR) ? 'w' : '-';
-    modeval[2] = (perm & S_IXUSR) ? 'x' : '-';
-    modeval[3] = (perm & S_IRGRP) ? 'r' : '-';
-    modeval[4] = (perm & S_IWGRP) ? 'w' : '-';
-    modeval[5] = (perm & S_IXGRP) ? 'x' : '-';
-    modeval[6] = (perm & S_IROTH) ? 'r' : '-';
-    modeval[7] = (perm & S_IWOTH) ? 'w' : '-';
-    modeval[8] = (perm & S_IXOTH) ? 'x' : '-';
-    modeval[9] = '\0';
+    modeval[0] = (perm & S_IFDIR) ? 'd' : '-';
+    modeval[1] = (perm & S_IRUSR) ? 'r' : '-';
+    modeval[2] = (perm & S_IWUSR) ? 'w' : '-';
+    modeval[3] = (perm & S_IXUSR) ? 'x' : '-';
+    modeval[4] = (perm & S_IRGRP) ? 'r' : '-';
+    modeval[5] = (perm & S_IWGRP) ? 'w' : '-';
+    modeval[6] = (perm & S_IXGRP) ? 'x' : '-';
+    modeval[7] = (perm & S_IROTH) ? 'r' : '-';
+    modeval[8] = (perm & S_IWOTH) ? 'w' : '-';
+    modeval[9] = (perm & S_IXOTH) ? 'x' : '-';
+    modeval[10] = '\0';
     return modeval;
   }
   else
@@ -139,47 +141,61 @@ void mylsExecute(char * path, struct Options *options) {
   d = opendir(path);
 
   if (d) {
-    if(options->_R) {
-      mylsDir(path, options);
-    } else {
-      list(path, options);
-    }
+    mylsDir(path, options);
   } else {
     handleDisplay(path, options);
   }
 }
+
+#define MAX_SUBDIRS 1024
 
 void mylsDir(char *path, struct Options *options) {
   char * subdir = "";
   struct dirent ** namelist;
   int n;
   int i = -1;
+  char **subDirectories = (char **)malloc((MAX_SUBDIRS) * sizeof(char *));;
+  int numSubDirs = 0;
 
+  if (options->_R) {
+    // char *trimmedPath = malloc(strlen(path));
+    for (int i = 0; i < strlen(path) - 1; i++){
+      printf("%c", path[i]);
+    }
+    printf(":\n");
+  }
   n = scandir(path, &namelist, 0, alphasort);
   if(n < 0) {
     perror("scandir");
   } else {
       while(++i < n) {
-        if(namelist[i]->d_name[0] != '.') {
-          if(options->_i) {
-            printf("%lu ", namelist[i]->d_ino);
-          }
-          if(options->_l) {
-            printf("%s ", permissions(namelist[i]->d_name));
-          }
-          printf("%s\n", namelist[i]->d_name);
+        if(!strcmp(namelist[i]->d_name, ".") || !strcmp(namelist[i]->d_name, "..") || namelist[i]->d_name[0] == '.') {
+          continue;
         }
-
-        if(namelist[i]->d_type == DT_DIR && strcmp(namelist[i]->d_name, ".") && strcmp(namelist[i]->d_name, "..") && namelist[i]->d_name[0] != '.') {
+        char *fullItemPath = malloc(strlen(path) + strlen(namelist[i]->d_name) + 5);
+        strcpy(fullItemPath, path);
+        strcat(fullItemPath, namelist[i]->d_name);
+        handleDisplay(fullItemPath, options);
+        
+        if(namelist[i]->d_type == DT_DIR) {
           subdir = malloc(strlen(path) + strlen(namelist[i]->d_name) + 2);
 
           strcpy(subdir, path);
-          strcat(subdir, "/");
           strcat(subdir, namelist[i]->d_name);
-          mylsExecute(subdir, options);
+          strcat(subdir, "/");
+
+          subDirectories[numSubDirs] = malloc(strlen(subdir) + 3);
+          strcpy(subDirectories[numSubDirs], subdir);
+          numSubDirs += 1;
+
+          // mylsExecute(subdir, options);
 
           free(subdir);
         }
+      }
+
+      for (int i = 0; i < numSubDirs; i++) {
+        mylsExecute(subDirectories[i], options);
       }
     }
 }
@@ -233,21 +249,41 @@ void printFileID(char *path) {
   }
 }
 
-void getAndPrintGroup(char* path)
+void printLinks(char* path) {
+  struct stat st;
+  if (stat(path, &st) == 0)
+  {
+    printf("%2lu", st.st_nlink);
+  }
+  else
+  {
+    perror("printLinks");
+  }
+}
+
+void printGroup(char* path)
 {
   struct stat st;
   if (stat(path, &st) == 0)
   {
-    struct group *grp = getgrgid(st.st_gid);
-    if (grp) {
-        printf(" %s", grp->gr_name);
-    } else {
-        printf("No group name for %u found\n", st.st_gid);
-    }
+    getAndPrintGroup(st.st_gid);
   }
   else
   {
-    perror("getAndPrintGroup");
+    perror("printGroup");
+  }
+}
+
+void printUser(char* path)
+{
+  struct stat st;
+  if (stat(path, &st) == 0)
+  {
+    getAndPrintUserName(st.st_uid);
+  }
+  else
+  {
+    perror("printUser");
   }
 }
 
@@ -295,8 +331,9 @@ void getAndPrintLastModificationDate(char* path)
 
 void printLongListing(char *path) {
   printf("%s ", permissions(path));
-  getAndPrintGroup(path);
+  printLinks(path);
+  printGroup(path);
+  printUser(path);
   printf("%7u", getFileSize(path));
   getAndPrintLastModificationDate(path);
-  // printf("%s\n", dir->d_name);
 }
