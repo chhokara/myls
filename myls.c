@@ -29,18 +29,7 @@ void list(char *, struct Options *);
 void myls(struct Options *options, char **paths, int numPaths)
 {
   // these are test outputs to see if flags are being parsed correctly
-  if (options->_R)
-  {
-    printf("R flag was entered\n");
-  }
-  if (options->_i)
-  {
-    printf("i flag was entered\n");
-  }
-  if (options->_l)
-  {
-    printf("l flag was entered\n");
-  }
+  
 
 
   // default print pwd
@@ -48,10 +37,14 @@ void myls(struct Options *options, char **paths, int numPaths)
   {
     paths[numPaths++] = "./";
   }
-
+  
   for (int i = 0; i < numPaths; i++)
   {
+    if (numPaths > 1) {
+      printf("%s:\n", paths[i]);
+    }
     mylsExecute(paths[i], options);
+    printf("\n");
   }
 }
 
@@ -138,8 +131,9 @@ void mylsExecute(char * inputPath, struct Options *options) {
   }
 
   if (access(path, F_OK) != 0) {
-    printf("Error: file or directory does not exist\n");
-    exit(EXIT_FAILURE);
+    printf("myls: cannot access '%s': No such file or directory\n", inputPath);
+    free(path);
+    return;
   }
 
   // Check if directory
@@ -153,6 +147,7 @@ void mylsExecute(char * inputPath, struct Options *options) {
     // printf("detected file\n");
     handleDisplay(path, options);
   }
+  free(path);
 }
 
 #define MAX_SUBDIRS 1024
