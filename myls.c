@@ -15,7 +15,6 @@
 #include <grp.h>
 #include "infodemo.c"
 
-// helpful post: https://stackoverflow.com/questions/29401653/printing-all-files-and-folders-in-a-path-in-linux-recursively-in-c?noredirect=1&lq=1
 int processToken(char *, struct Options *, char **, int *);
 void myls(struct Options *, char **, int numPaths);
 char *permissions(char *);
@@ -28,11 +27,6 @@ void list(char *, struct Options *);
 
 void myls(struct Options *options, char **paths, int numPaths)
 {
-  // these are test outputs to see if flags are being parsed correctly
-  
-
-
-  // default print pwd
   if (numPaths == 0)
   {
     paths[numPaths++] = "./";
@@ -40,7 +34,7 @@ void myls(struct Options *options, char **paths, int numPaths)
   
   for (int i = 0; i < numPaths; i++)
   {
-    if (numPaths > 1) {
+    if (numPaths > 1 && !options->_R) {
       printf("%s:\n", paths[i]);
     }
     mylsExecute(paths[i], options);
@@ -136,15 +130,12 @@ void mylsExecute(char * inputPath, struct Options *options) {
     return;
   }
 
-  // Check if directory
   DIR *d;
   d = opendir(path);
 
   if (d) {
-    // printf("detected directory\n");
     mylsDir(path, options);
   } else {
-    // printf("detected file\n");
     handleDisplay(path, options);
   }
   free(path);
@@ -161,7 +152,7 @@ void mylsDir(char *path, struct Options *options) {
   int numSubDirs = 0;
 
   if (options->_R) {
-    // char *trimmedPath = malloc(strlen(path));
+    printf("\n");
     for (int i = 0; i < strlen(path) - 1; i++){
       printf("%c", path[i]);
     }
@@ -176,8 +167,6 @@ void mylsDir(char *path, struct Options *options) {
           continue;
         }
         char *fullItemPath = malloc(strlen(path) + strlen(namelist[i]->d_name) + 5);
-        // printf("path is: %s\n", path);
-        // printf("filename is: %s\n", namelist[i]->d_name);
         strcpy(fullItemPath, path);
         strcat(fullItemPath, namelist[i]->d_name);
         handleDisplay(fullItemPath, options);
@@ -192,8 +181,6 @@ void mylsDir(char *path, struct Options *options) {
           subDirectories[numSubDirs] = malloc(strlen(subdir) + 3);
           strcpy(subDirectories[numSubDirs], subdir);
           numSubDirs += 1;
-
-          // mylsExecute(subdir, options);
 
           free(subdir);
         }
@@ -215,32 +202,6 @@ void handleDisplay(char *path, struct Options *options) {
   printf("%s\n", basename(path));
 }
 
-void list(char *path, struct Options *options) {
-  struct dirent **namelist;
-  int n;
-  int i = -1;
-
-  n = scandir(path, &namelist,NULL,alphasort);
-  if (n < 0) {
-    perror("scandir");
-  }
-  else {
-    while (++i < n) {
-      if(!strcmp(namelist[i]->d_name, ".") || !strcmp(namelist[i]->d_name, "..") || namelist[i]->d_name[0] == '.') {
-        continue;
-      }
-      if(options->_l) {
-        printLongListing(path);
-      }
-      if(options->_i) {
-        printf("%lu ", namelist[i]->d_ino);
-      }
-      printf("%s\n", namelist[i]->d_name);
-      free(namelist[i]);
-    }
-    free(namelist);
-  }
-}
 
 void printFileID(char *path) {
   struct stat st;
