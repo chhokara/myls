@@ -129,7 +129,13 @@ char *permissions(char *file)
   }
 }
 
-void mylsExecute(char * path, struct Options *options) {
+void mylsExecute(char * inputPath, struct Options *options) {
+
+  char *path = malloc(strlen(inputPath) + 1);
+  strcpy(path, inputPath);
+  if (path[strlen(inputPath) - 1] != '/') {
+    path[strlen(inputPath)] = '/';
+  }
 
   if (access(path, F_OK) != 0) {
     printf("Error: file or directory does not exist\n");
@@ -141,8 +147,10 @@ void mylsExecute(char * path, struct Options *options) {
   d = opendir(path);
 
   if (d) {
+    // printf("detected directory\n");
     mylsDir(path, options);
   } else {
+    // printf("detected file\n");
     handleDisplay(path, options);
   }
 }
@@ -173,11 +181,13 @@ void mylsDir(char *path, struct Options *options) {
           continue;
         }
         char *fullItemPath = malloc(strlen(path) + strlen(namelist[i]->d_name) + 5);
+        // printf("path is: %s\n", path);
+        // printf("filename is: %s\n", namelist[i]->d_name);
         strcpy(fullItemPath, path);
         strcat(fullItemPath, namelist[i]->d_name);
         handleDisplay(fullItemPath, options);
         
-        if(namelist[i]->d_type == DT_DIR) {
+        if(namelist[i]->d_type == DT_DIR && options->_R) {
           subdir = malloc(strlen(path) + strlen(namelist[i]->d_name) + 2);
 
           strcpy(subdir, path);
@@ -207,7 +217,7 @@ void handleDisplay(char *path, struct Options *options) {
   if (options->_l) {
     printLongListing(path);
   }
-  printf(" %s\n", basename(path));
+  printf("%s\n", basename(path));
 }
 
 void list(char *path, struct Options *options) {
@@ -320,7 +330,7 @@ void getAndPrintLastModificationDate(char* path)
     if (dayBuf[0] == '0') {
       dayBuf++;
     }
-    printf(" %s %2s %s", monthBuf, dayBuf, yearAndTimeBuf);
+    printf(" %s %2s %s ", monthBuf, dayBuf, yearAndTimeBuf);
 
   }
   else
@@ -332,8 +342,8 @@ void getAndPrintLastModificationDate(char* path)
 void printLongListing(char *path) {
   printf("%s ", permissions(path));
   printLinks(path);
-  printGroup(path);
   printUser(path);
+  printGroup(path);
   printf("%7u", getFileSize(path));
   getAndPrintLastModificationDate(path);
 }
