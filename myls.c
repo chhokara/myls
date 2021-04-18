@@ -198,8 +198,9 @@ void handleDisplay(char *path, struct Options *options) {
   }
   if (options->_l) {
     printLongListing(path);
+  } else {
+    printf("%s\n", basename(path));
   }
-  printf("%s\n", basename(path));
 }
 
 
@@ -302,4 +303,22 @@ void printLongListing(char *path) {
   printGroup(path);
   printf("%7u", getFileSize(path));
   getAndPrintLastModificationDate(path);
+  struct stat st;
+  if (lstat(path, &st) == 0) {
+    if (S_ISLNK(st.st_mode) == 1) {
+      printf("%s -> ", basename(path));
+      char buf[1024];
+      ssize_t len;
+      if ((len = readlink(path, buf, sizeof(buf)-1)) != -1) {
+        buf[len] = '\0';
+      }
+      printf("%s\n", buf);
+    } else {
+      printf("%s\n", basename(path));
+    }
+  }
+  else
+  {
+    perror("symlink");
+  }
 }
